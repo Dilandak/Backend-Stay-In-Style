@@ -110,13 +110,13 @@ def create_app():
     api.add_resource(VistaDisponibilidadProducto, '/api/producto/<int:id_producto>/disponibilidad')
 
 
-    # ===== Documentación SWAGGER con Flask-RestX =====
+# ===== Documentación SWAGGER con Flask-RestX =====
     blueprint = Blueprint('api', __name__, url_prefix='/api')
     api = RestXApi(
         blueprint,
         version='1.0',
         title='Stay API - Documentación Completa',
-        description='Documentación para Usuarios, Productos, Reseñas y Pedidos',
+        description='Documentación completa para todos los endpoints de la API',
         doc='/swagger/',
         authorizations={
             'Bearer Auth': {
@@ -175,12 +175,63 @@ def create_app():
         'fecha_compra': fields.DateTime()
     })
 
+    categoria_model = api.model('Categoria', {
+        'id': fields.Integer(readOnly=True),
+        'nombre': fields.String(required=True, example="Calzado"),
+        'descripcion': fields.String(example="Todo tipo de calzado")
+    })
+
+    carrito_model = api.model('Carrito', {
+        'id': fields.Integer(readOnly=True),
+        'id_usuario': fields.Integer(required=True),
+        'fecha_creacion': fields.DateTime(),
+        'estado': fields.String(enum=['Activo', 'Completado', 'Abandonado'])
+    })
+
+    inventario_model = api.model('Inventario', {
+        'id': fields.Integer(readOnly=True),
+        'id_producto': fields.Integer(required=True),
+        'talla': fields.String(required=True, example="M"),
+        'cantidad': fields.Integer(required=True, example=10),
+        'genero': fields.String(enum=['Hombre', 'Mujer', 'Unisex'])
+    })
+
+    talla_model = api.model('Talla', {
+        'id': fields.Integer(readOnly=True),
+        'talla': fields.String(required=True, example="M"),
+        'descripcion': fields.String(example="Mediana")
+    })
+
+    genero_model = api.model('Genero', {
+        'id': fields.Integer(readOnly=True),
+        'nombre': fields.String(required=True, example="Hombre"),
+        'descripcion': fields.String(example="Ropa para hombres")
+    })
+
+    historial_stock_model = api.model('HistorialStock', {
+        'id': fields.Integer(readOnly=True),
+        'id_producto': fields.Integer(required=True),
+        'cantidad_anterior': fields.Integer(required=True),
+        'cantidad_nueva': fields.Integer(required=True),
+        'fecha_modificacion': fields.DateTime(),
+        'motivo': fields.String(example="Reabastecimiento")
+    })
+
     # ===== NAMESPACES CON DOCUMENTACIÓN =====
     users_ns = Namespace('Usuarios', description='CRUD para usuarios', path='/usuarios')
     products_ns = Namespace('Productos', description='CRUD para productos', path='/productos')
     reviews_ns = Namespace('Reseñas', description='CRUD para reseñas', path='/reseñas')
     orders_ns = Namespace('Pedidos', description='CRUD para pedidos', path='/pedidos')
     purchases_ns = Namespace('Compras', description='CRUD para compras', path='/compras')
+    categories_ns = Namespace('Categorias', description='CRUD para categorías', path='/categorias')
+    carts_ns = Namespace('Carritos', description='CRUD para carritos de compra', path='/carritos')
+    inventory_ns = Namespace('Inventario', description='Gestión de inventario', path='/inventario')
+    sizes_ns = Namespace('Tallas', description='Gestión de tallas', path='/tallas')
+    genders_ns = Namespace('Géneros', description='Gestión de géneros', path='/generos')
+    stock_history_ns = Namespace('HistorialStock', description='Historial de cambios en stock', path='/historial-stock')
+    notifications_ns = Namespace('Notificaciones', description='Gestión de notificaciones', path='/notificaciones')
+    reports_ns = Namespace('Reportes', description='Generación de reportes', path='/reportes')
+    roles_ns = Namespace('Roles', description='Gestión de roles de usuario', path='/roles')
 
     # Usuarios
     @users_ns.route('/')
@@ -363,11 +414,197 @@ def create_app():
             """Obtiene todas las compras de un usuario específico"""
             pass
 
+    # Categorías
+    @categories_ns.route('/')
+    class CategoriaList(Resource):
+        @categories_ns.doc('listar_categorias')
+        @categories_ns.marshal_list_with(categoria_model)
+        def get(self):
+            """Lista todas las categorías"""
+            pass
+
+        @categories_ns.doc('crear_categoria', security='Bearer Auth')
+        @categories_ns.expect(categoria_model)
+        @categories_ns.marshal_with(categoria_model, code=201)
+        def post(self):
+            """Crea una nueva categoría"""
+            pass
+
+    @categories_ns.route('/<int:id_categoria>')
+    class CategoriaDetail(Resource):
+        @categories_ns.doc('obtener_categoria')
+        @categories_ns.marshal_with(categoria_model)
+        def get(self, id_categoria):
+            """Obtiene una categoría específica"""
+            pass
+
+        @categories_ns.doc('actualizar_categoria', security='Bearer Auth')
+        @categories_ns.expect(categoria_model)
+        @categories_ns.marshal_with(categoria_model)
+        def put(self, id_categoria):
+            """Actualiza una categoría existente"""
+            pass
+
+        @categories_ns.doc('eliminar_categoria', security='Bearer Auth')
+        @categories_ns.response(204, 'Categoría eliminada')
+        def delete(self, id_categoria):
+            """Elimina una categoría"""
+            pass
+
+    # Carritos
+    @carts_ns.route('/')
+    class CarritoList(Resource):
+        @carts_ns.doc('listar_carritos', security='Bearer Auth')
+        @carts_ns.marshal_list_with(carrito_model)
+        def get(self):
+            """Lista todos los carritos"""
+            pass
+
+        @carts_ns.doc('crear_carrito', security='Bearer Auth')
+        @carts_ns.expect(carrito_model)
+        @carts_ns.marshal_with(carrito_model, code=201)
+        def post(self):
+            """Crea un nuevo carrito"""
+            pass
+
+    @carts_ns.route('/<int:id_carrito>')
+    class CarritoDetail(Resource):
+        @carts_ns.doc('obtener_carrito', security='Bearer Auth')
+        @carts_ns.marshal_with(carrito_model)
+        def get(self, id_carrito):
+            """Obtiene un carrito específico"""
+            pass
+
+        @carts_ns.doc('actualizar_carrito', security='Bearer Auth')
+        @carts_ns.expect(carrito_model)
+        @carts_ns.marshal_with(carrito_model)
+        def put(self, id_carrito):
+            """Actualiza un carrito existente"""
+            pass
+
+        @carts_ns.doc('eliminar_carrito', security='Bearer Auth')
+        @carts_ns.response(204, 'Carrito eliminado')
+        def delete(self, id_carrito):
+            """Elimina un carrito"""
+            pass
+
+    # Inventario
+    @inventory_ns.route('/producto/<int:id_producto>')
+    class InventarioProducto(Resource):
+        @inventory_ns.doc('inventario_por_producto')
+        @inventory_ns.marshal_list_with(inventario_model)
+        def get(self, id_producto):
+            """Obtiene el inventario de un producto específico"""
+            pass
+
+        @inventory_ns.doc('agregar_inventario', security='Bearer Auth')
+        @inventory_ns.expect(inventario_model)
+        @inventory_ns.marshal_with(inventario_model, code=201)
+        def post(self, id_producto):
+            """Agrega un nuevo item al inventario de un producto"""
+            pass
+
+    @inventory_ns.route('/<int:id_inventario>')
+    class InventarioItem(Resource):
+        @inventory_ns.doc('obtener_item_inventario')
+        @inventory_ns.marshal_with(inventario_model)
+        def get(self, id_inventario):
+            """Obtiene un item específico del inventario"""
+            pass
+
+        @inventory_ns.doc('actualizar_item_inventario', security='Bearer Auth')
+        @inventory_ns.expect(inventario_model)
+        @inventory_ns.marshal_with(inventario_model)
+        def put(self, id_inventario):
+            """Actualiza un item del inventario"""
+            pass
+
+        @inventory_ns.doc('eliminar_item_inventario', security='Bearer Auth')
+        @inventory_ns.response(204, 'Item eliminado')
+        def delete(self, id_inventario):
+            """Elimina un item del inventario"""
+            pass
+
+    # Tallas
+    @sizes_ns.route('/')
+    class TallaList(Resource):
+        @sizes_ns.doc('listar_tallas')
+        @sizes_ns.marshal_list_with(talla_model)
+        def get(self):
+            """Lista todas las tallas disponibles"""
+            pass
+
+    # Géneros
+    @genders_ns.route('/')
+    class GeneroList(Resource):
+        @genders_ns.doc('listar_generos')
+        @genders_ns.marshal_list_with(genero_model)
+        def get(self):
+            """Lista todos los géneros disponibles"""
+            pass
+
+    # Historial de Stock
+    @stock_history_ns.route('/')
+    class HistorialStockList(Resource):
+        @stock_history_ns.doc('listar_historial_stock', security='Bearer Auth')
+        @stock_history_ns.marshal_list_with(historial_stock_model)
+        def get(self):
+            """Lista todo el historial de cambios en stock"""
+            pass
+
+        @stock_history_ns.doc('crear_historial_stock', security='Bearer Auth')
+        @stock_history_ns.expect(historial_stock_model)
+        @stock_history_ns.marshal_with(historial_stock_model, code=201)
+        def post(self):
+            """Registra un nuevo cambio en el stock"""
+            pass
+
+    @stock_history_ns.route('/producto/<int:id_producto>')
+    class HistorialStockProducto(Resource):
+        @stock_history_ns.doc('historial_stock_por_producto', security='Bearer Auth')
+        @stock_history_ns.marshal_list_with(historial_stock_model)
+        def get(self, id_producto):
+            """Obtiene el historial de cambios de stock para un producto específico"""
+            pass
+
+    # Notificaciones
+    @notifications_ns.route('/')
+    class NotificacionList(Resource):
+        @notifications_ns.doc('listar_notificaciones', security='Bearer Auth')
+        def get(self):
+            """Lista todas las notificaciones del usuario actual"""
+            pass
+
+    # Reportes
+    @reports_ns.route('/ventas')
+    class ReporteVentas(Resource):
+        @reports_ns.doc('generar_reporte_ventas', security='Bearer Auth')
+        def get(self):
+            """Genera un reporte de ventas"""
+            pass
+
+    # Roles
+    @roles_ns.route('/')
+    class RolList(Resource):
+        @roles_ns.doc('listar_roles', security='Bearer Auth')
+        def get(self):
+            """Lista todos los roles disponibles"""
+            pass
+
     # Agregamos todos los namespaces al api de documentación
     api.add_namespace(users_ns)
     api.add_namespace(products_ns)
     api.add_namespace(reviews_ns)
     api.add_namespace(orders_ns)
     api.add_namespace(purchases_ns)
+    api.add_namespace(categories_ns)
+    api.add_namespace(carts_ns)
+    api.add_namespace(inventory_ns)
+    api.add_namespace(sizes_ns)
+    api.add_namespace(genders_ns)
+    api.add_namespace(stock_history_ns)
+    api.add_namespace(notifications_ns)
+    api.add_namespace(reports_ns)
+    api.add_namespace(roles_ns)
 
     return app

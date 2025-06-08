@@ -571,19 +571,29 @@ class VistaInicioSesion(Resource):
         usuario = Usuario.query.filter_by(email=email).first()
 
         if usuario and usuario.verificar_contrasena(contrasena):
+            # Verificar si el usuario está activo
+            if usuario.estado != "Activo":
+                return {"mensaje": "Tu cuenta está inactiva. Contacta al administrador."}, 403
+            
             token = create_access_token(identity=str(usuario.id))
             mensaje = "Inicio de sesión exitoso"
+            rol_message = ""
+            
             if usuario.id_rol == 1:
-                mensaje += " como administrador"
-
+                rol_message = " como administrador"
+            elif usuario.id_rol == 2:
+                rol_message = " como usuario"
+            
             return {
-                "mensaje": mensaje,
+                "mensaje": mensaje + rol_message,
                 "token": token,
                 "usuario": {
                     "id": usuario.id,
                     "nombre": usuario.nombre,
                     "email": usuario.email,
-                    "direccion": usuario.direccion
+                    "direccion": usuario.direccion,
+                    "id_rol": usuario.id_rol,  # ¡Esto es lo crucial que faltaba!
+                    "estado": usuario.estado
                 }
             }, 200
 
@@ -800,56 +810,87 @@ class VistaCrearPedido(Resource):
         
 
 # RESEÑAS 
+
+
+logger = logging.getLogger(__name__)
+
 class VistaCrearReseña(Resource):
+    @jwt_required()  # 🔐 Requiere autenticación JWT
     def post(self, id_producto):
         """
-        Crea una nueva reseña para un producto específico
-        Parámetros:
-        - id_producto: ID del producto a reseñar (en la URL)
-        - Body JSON: { "comentario": string, "calificacion": int (1-5), "id_usuario": int }
+        Crea una reseña para un producto
+        ---
+        tags:
+          - Reseñas
+        parameters:
+          - name: id_producto
+            in: path
+            type: integer
+            required: true
+          - name: body
+            in: body
+            required: true
+            schema:
+              properties:
+                comentario:
+                  type: string
+                  example: "Excelente producto"
+                calificacion:
+                  type: integer
+                  example: 5
+        responses:
+          201:
+            description: Reseña creada exitosamente
+          400:
+            description: Datos inválidos
+          404:
+            description: Producto no encontrado
         """
         try:
-            # Verificar que el producto exista
-            producto = Producto.query.get_or_404(id_producto)
-            
-            # Obtener datos del request
-            datos = request.get_json()
-            
-            # Validación básica
-            if not datos.get('comentario') or not datos.get('calificacion') or not datos.get('id_usuario'):
-                return {"mensaje": "Comentario, calificación e ID de usuario son requeridos"}, 400
-            
-            if not 1 <= datos['calificacion'] <= 5:
-                return {"mensaje": "La calificación debe ser entre 1 y 5"}, 400
+            # 1. Obtener usuario autenticado del token JWT
+            id_usuario = get_jwt_identity()
+            logger.info(f"Usuario autenticado ID: {id_usuario}")
 
-            # Crear la reseña
+            # 2. Validar datos del request
+            datos = request.get_json()
+            if not datos:
+                return {"mensaje": "Debes enviar un JSON con comentario y calificación"}, 400
+
+            # 3. Validar campos requeridos
+            if not isinstance(datos.get('comentario'), str) or not datos['comentario'].strip():
+                return {"mensaje": "El comentario no puede estar vacío"}, 400
+
+            if not isinstance(datos.get('calificacion'), int) or datos['calificacion'] not in {1, 2, 3, 4, 5}:
+                return {"mensaje": "La calificación debe ser un entero entre 1 y 5"}, 400
+
+            # 4. Verificar que el producto exista
+            producto = Producto.query.get_or_404(id_producto)
+
+            # 5. Crear la reseña
             nueva_reseña = Reseña(
-                comentario=datos['comentario'],
+                comentario=datos['comentario'].strip(),
                 calificacion=datos['calificacion'],
                 id_producto=id_producto,
-                id_usuario=datos['id_usuario']
+                id_usuario=id_usuario  # 🎯 Usamos el ID del JWT
             )
-            
+
             db.session.add(nueva_reseña)
             db.session.commit()
-            
+
             return {
-                "mensaje": "Reseña creada exitosamente",
-                "reseña": {
+                "mensaje": "⭐ Reseña creada exitosamente!",
+                "data": {
                     "id": nueva_reseña.id,
                     "producto": producto.nombre,
                     "calificacion": nueva_reseña.calificacion,
                     "comentario": nueva_reseña.comentario
                 }
             }, 201
-            
+
         except Exception as e:
             db.session.rollback()
-            print("Error al crear reseña:", str(e))
-            return {
-                "mensaje": "Error al crear la reseña",
-                "error": str(e)
-            }, 500
+            logger.error(f"Error al crear reseña: {str(e)}", exc_info=True)
+            return {"mensaje": "Error interno del servidor"}, 500
 
 
 class VistaReseñasProducto(Resource):
