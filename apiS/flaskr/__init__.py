@@ -22,7 +22,7 @@ def create_app():
     api = Api(app)
 
     # ===== Configuración de la app =====
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/stayprueba'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://stayprueba_qpys_user:2DuD58ElJeNhvdQbUTEYN7KUWVm20em5@dpg-d1103lqli9vc7388qskg-a/stayprueba_qpys'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JWT_SECRET_KEY'] = 'supersecretkey'
 
