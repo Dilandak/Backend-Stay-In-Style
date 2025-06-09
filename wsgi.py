@@ -1,3 +1,3 @@
-from apis import create_app
+from apis.flaskr  import create_app
 
 app = create_app()
